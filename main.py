@@ -136,7 +136,7 @@ class RFMApp:
         self.draw()
         
         flow_values = self.read_flow_values()
-        self.displayFlowValues([f"{x:1f}" for x in flow_values])
+        self.displayFlowValues([f"{x:.2f}" for x in flow_values])
         
         self.update_plot_data(flow_values)
 
