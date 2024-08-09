@@ -314,15 +314,14 @@ class RFMApp:
                                         text="Sensing Output", fill='white', font=font, anchor='w')
 
     def parse_flow_serial_buffer(self, flow_string):
-        # 그러한 myString이 존재한다면 100의자리 ~ 10만의 자리까지는 첫 번째 채널의 정보이고,
-        # 소수 둘째자리 ~ 10의 자리까지는 두 번째 채널의 정보이므로 myString을 float(소수 숫자)로 한 후
-        # 100으로 나누어 준 후 소수자리를 버린후 int(정수)로 저장한다.
-        # 100으로 나눈 수 에서 소수자리를 버린 수를 빼서 소수자리만 구한 후 10000을 곱한다.
-        # 각각 첫번째, 두번째 채널 정보이고 0-4095의 정보이므로 4095로 나누어 132을 곱해 실제정보를 구한다.
+        # XXX0Y.YY is the format of the flow sensor data
+        # XXX * 99 / 40950 is the first channel's flow value
+        # YYY * 99 / 40950 is the second channel's flow value
+        # the magic numbers 99 and 40950 are determined by the flow sensor's characteristics
         num = float(flow_string) / 100
         num1 = int(num)
         flow_L = (float(num1) * 99 / 40950)
-        flow_R = (1000.000 * (num - num1) * 99 / 4095)
+        flow_R = (100.000 * (num - num1) * 99 / 40950)
         return [flow_L, flow_R]
 
     def displayFlowValues(self, flowValues):
