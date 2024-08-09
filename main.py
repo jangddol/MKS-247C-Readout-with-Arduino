@@ -321,7 +321,7 @@ class RFMApp:
         num = float(flow_string) / 100
         num1 = int(num)
         flow_L = (float(num1) * 99 / 40950)
-        flow_R = (100.000 * (num - num1) * 99 / 40950)
+        flow_R = (10000.000 * (num - num1) * 99 / 40950)
         return [flow_L, flow_R]
 
     def displayFlowValues(self, flowValues):
