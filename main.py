@@ -61,7 +61,7 @@ class RFMApp:
         self.setup_initial_state()
         self.setup_ui()
         self.setup_data_collection()
-        self.setup_serial()
+        self.setup_serial(SERIAL_ON)
         self.main_loop()
 
     def initialize_arrays(self):
@@ -125,9 +125,8 @@ class RFMApp:
         self.lasttime = time.time()
         self.plot_window = None
 
-    def setup_serial(self):
-        if SERIAL_ON:
-            self.serial = RFMserial("COM3", 9600)
+    def setup_serial(self, on):
+        self.serial = RFMserial(on, "COM3", 9600)
 
     def main_loop(self):
         self.update()
@@ -135,8 +134,6 @@ class RFMApp:
 
     def update(self):
         self.draw()
-        if not SERIAL_ON:
-            return
         
         flow_values = self.read_flow_values()
         self.displayFlowValues([f"{x:1f}" for x in flow_values])
@@ -246,8 +243,7 @@ class RFMApp:
 
     def on_reset_click(self):
         self.setup_initial_state()
-        if SERIAL_ON:
-            self.serial.reset_serial()
+        self.serial.reset_serial()
 
     def on_plot_click(self):
         # make another window by clicking plot button
