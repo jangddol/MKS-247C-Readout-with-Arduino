@@ -92,7 +92,7 @@ class RFMApp:
         self.canvas = tk.Canvas(self.master, width=self.width, height=self.height, bg='black')
         self.canvas.pack()
 
-        self.font = ('Calibri Light', self.config.FONT_SIZE)
+        self.font = ('Calibri Light', FONT_SIZE)
         
         self.setup_buttons()
         self.setup_bindings()
@@ -131,7 +131,7 @@ class RFMApp:
 
     def main_loop(self):
         self.update()
-        self.window.after(100, self.main_loop)  # Schedule next update
+        self.master.after(100, self.main_loop)  # Schedule next update
 
     def update(self):
         self.draw()
@@ -189,10 +189,10 @@ class RFMApp:
 
     def draw(self):
         # background as black
-        self.window.configure(bg="black")
+        self.master.configure(bg="black")
         # update width and height from window size
-        self.width = self.window.winfo_width()
-        self.height = self.window.winfo_height()
+        self.width = self.master.winfo_width()
+        self.height = self.master.winfo_height()
         
         self.fillEntryBkgColor()
         self.displayTexts()
@@ -237,16 +237,16 @@ class RFMApp:
     def on_mini_toggle(self):
         if self.mini_toggle.config('relief')[-1] == 'sunken':
             self.mini_toggle.config(relief="raised")
-            self.window.geometry(f"{COLUMNNUM * COLUMNWIDTH}x{HEIGHT}")
+            self.master.geometry(f"{COLUMNNUM * COLUMNWIDTH}x{HEIGHT}")
             self.mn = False
         else:
             self.mini_toggle.config(relief="sunken")
-            self.window.geometry(f"{COLUMNNUM * COLUMNWIDTH}x{MINIHEIGHT}")
+            self.master.geometry(f"{COLUMNNUM * COLUMNWIDTH}x{MINIHEIGHT}")
             self.mn = True
 
     def on_reset_click(self):
         self.setup_initial_state()
-        if self.config.SERIAL_ON:
+        if SERIAL_ON:
             self.serial.reset_serial()
 
     def on_plot_click(self):
@@ -516,4 +516,4 @@ class RFMApp:
 if __name__ == "__main__":
     master = tk.Tk()
     app = RFMApp(master)
-    app.window.mainloop()
+    app.master.mainloop()
