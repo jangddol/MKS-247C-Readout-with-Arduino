@@ -108,11 +108,22 @@ class RFMApp:
         self.place_buttons()
 
     def place_buttons(self):
-        for i, button in enumerate(self.switchs_toggle):
-            button.place(x=SWITCH_XOFFSET + i * COLUMNWIDTH, y=SWITCH_YOFFSET, width=SWITCH_WIDTH, height=SWITCH_HEIGHT)
-        self.mini_toggle.place(x=MINITOGGLE_XOFFSET, y=MINITOGGLE_YOFFSET, width=MINITOGGLE_WIDTH, height=MINITOGGLE_HEIGHT)
-        self.reset_button.place(x=RESET_XOFFSET, y=RESET_YOFFSET, width=RESET_WIDTH, height=RESET_HEIGHT)
-        self.plot_button.place(x=PLOT_XOFFSET, y=PLOT_YOFFSET,width=PLOT_WIDTH,height=PLOT_HEIGHT)
+        if not self.mn:
+            resize_ratio_x = self.width / (COLUMNNUM * COLUMNWIDTH)
+            resize_ratio_y = self.height / HEIGHT
+            for i in range(COLUMNNUM):
+                self.switchs_toggle[i].place(x=(SWITCH_XOFFSET + i * COLUMNWIDTH) * resize_ratio_x, y=SWITCH_YOFFSET * resize_ratio_y,
+                                             width=SWITCH_WIDTH * resize_ratio_x, height=SWITCH_HEIGHT * resize_ratio_y)
+            self.reset_button.place(x=RESET_XOFFSET * resize_ratio_x, y=RESET_YOFFSET * resize_ratio_y,
+                                    width=RESET_WIDTH * resize_ratio_x, height=RESET_HEIGHT * resize_ratio_y)
+            self.plot_button.place(x=PLOT_XOFFSET * resize_ratio_x, y=PLOT_YOFFSET * resize_ratio_y,
+                                    width=PLOT_WIDTH * resize_ratio_x, height=PLOT_HEIGHT * resize_ratio_y)
+            self.mini_toggle.place(x=MINITOGGLE_XOFFSET * resize_ratio_x, y=MINITOGGLE_YOFFSET * resize_ratio_y,
+                                   width=MINITOGGLE_WIDTH * resize_ratio_x, height=MINITOGGLE_HEIGHT * resize_ratio_y)
+        else:
+            self.reset_button.place(x=RESET_XOFFSET, y=RESET_YOFFSET, width=RESET_WIDTH, height=RESET_HEIGHT)
+            self.plot_button.place(x=PLOT_XOFFSET, y=PLOT_YOFFSET, width=PLOT_WIDTH, height=PLOT_HEIGHT)
+            self.mini_toggle.place(x=MINITOGGLE_XOFFSET, y=MINITOGGLE_YOFFSET, width=MINITOGGLE_WIDTH, height=MINITOGGLE_HEIGHT)
 
     def setup_bindings(self):
         self.master.bind("<Key>", self.key_pressed)
@@ -192,7 +203,7 @@ class RFMApp:
         
         self.fillEntryBkgColor()
         self.displayTexts()
-        self.replace_toggles()
+        self.place_buttons()
         self.change_highlight_entry_to(self.highlighted_entry)
 
     def on_resize(self, event):
@@ -484,24 +495,6 @@ class RFMApp:
         else:
             self.channelBkgColors[2] = COLOR_BLACK
             self.channelsEntry[2] = ""
-
-    def replace_toggles(self):
-        if not self.mn:
-            resize_ratio_x = self.width / (COLUMNNUM * COLUMNWIDTH)
-            resize_ratio_y = self.height / HEIGHT
-            for i in range(COLUMNNUM):
-                self.switchs_toggle[i].place(x=(SWITCH_XOFFSET + i * COLUMNWIDTH) * resize_ratio_x, y=SWITCH_YOFFSET * resize_ratio_y,
-                                             width=SWITCH_WIDTH * resize_ratio_x, height=SWITCH_HEIGHT * resize_ratio_y)
-            self.reset_button.place(x=RESET_XOFFSET * resize_ratio_x, y=RESET_YOFFSET * resize_ratio_y,
-                                    width=RESET_WIDTH * resize_ratio_x, height=RESET_HEIGHT * resize_ratio_y)
-            self.plot_button.place(x=PLOT_XOFFSET * resize_ratio_x, y=PLOT_YOFFSET * resize_ratio_y,
-                                    width=PLOT_WIDTH * resize_ratio_x, height=PLOT_HEIGHT * resize_ratio_y)
-            self.mini_toggle.place(x=MINITOGGLE_XOFFSET * resize_ratio_x, y=MINITOGGLE_YOFFSET * resize_ratio_y,
-                                   width=MINITOGGLE_WIDTH * resize_ratio_x, height=MINITOGGLE_HEIGHT * resize_ratio_y)
-        else:
-            self.reset_button.place(x=RESET_XOFFSET, y=RESET_YOFFSET, width=RESET_WIDTH, height=RESET_HEIGHT)
-            self.plot_button.place(x=PLOT_XOFFSET, y=PLOT_YOFFSET, width=PLOT_WIDTH, height=PLOT_HEIGHT)
-            self.mini_toggle.place(x=MINITOGGLE_XOFFSET, y=MINITOGGLE_YOFFSET, width=MINITOGGLE_WIDTH, height=MINITOGGLE_HEIGHT)
 
 if __name__ == "__main__":
     master = tk.Tk()
