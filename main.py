@@ -71,7 +71,6 @@ class RFMApp:
         self.flowSetPoints_Sended = [""] * COLUMNNUM
         self.channels = [Channel.CH_UNKNOWN] * COLUMNNUM
         self.channelsEntry = [""] * COLUMNNUM
-        self.flowSetPoints_int = [0] * COLUMNNUM
         self.flowSetPointBkgColors = [COLOR_BLACK] * COLUMNNUM
         self.channelBkgColors = [COLOR_BLACK] * COLUMNNUM
 
@@ -194,7 +193,6 @@ class RFMApp:
         self.fillEntryBkgColor()
         self.displayTexts()
         self.replace_toggles()
-        self.save_entry_as_integer()
         self.change_highlight_entry_to(self.highlighted_entry)
 
     def on_resize(self, event):
@@ -340,26 +338,23 @@ class RFMApp:
                 self.canvas.create_text(10 + i * COLUMNWIDTH, 80,
                                         text=flowValues[i], fill='white', font=font, anchor='w')
 
-    def is_valid_flow_setpoint(self, flow_setpoint):
+    def is_valid_flow_setpoint(self, flow_setpoint_entry):
+        try:
+            flow_setpoint = int(flow_setpoint_entry)
+        except:
+            return False
         return flow_setpoint < 100 and flow_setpoint >= 0
     
     def update_flow_setpoint(self, index):
         if self.channels[index] == Channel.CH_UNKNOWN:
             self.flowSetPoints_Shown[index] = "  Set Channel"
         else:
-            if self.is_valid_flow_setpoint(self.flowSetPoints_int[index]):
+            if self.is_valid_flow_setpoint(self.flowSetPoint_Entry[index]):
                 self.serial.writeFlowSetpoint_serial(self.flowSetPoint_Entry[index], self.channels[index])
                 self.flowSetPoints_Shown[index] = f"  {self.flowSetPoint_Entry[index]}"
                 self.flowSetPoints_Sended[index] = self.flowSetPoint_Entry[index]
             else:
                 self.flowSetPoints_Shown[index] = "  Input invalid"
-
-    def save_entry_as_integer(self):
-        for i in range(COLUMNNUM):
-            try:
-                self.flowSetPoints_int[i] = int(self.flowSetPoint_Entry[i])
-            except:
-                self.flowSetPoints_int[i] = -1 # just smaller than 0
 
     def apply_changed_channel(self, index):
         channelEntry_int = 0
