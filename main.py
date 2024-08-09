@@ -58,37 +58,147 @@ MAXLEN = 100
 class RFMApp:
     def __init__(self, master):
         self.master = master
-        self.COLUMNNUM = 3
-        self.flowSetPoint_Entry = [""] * self.COLUMNNUM 
-        self.flowSetPoints_Shown = ["  Set Channel"] * self.COLUMNNUM
-        self.toggleStateStrings = ["  OFF"] * self.COLUMNNUM
-        self.flowSetPoints_Sended = [""] * self.COLUMNNUM
-        self.channels = [Channel.CH_UNKNOWN] * self.COLUMNNUM
-        self.channelsEntry = [""] * self.COLUMNNUM
-        self.flowSetPoints_int = [0] * self.COLUMNNUM
-        self.flowSetPointBkgColors = [COLOR_BLACK] * self.COLUMNNUM
-        self.channelBkgColors = [COLOR_BLACK] * self.COLUMNNUM
+        self.setup_initial_state()
+        self.setup_ui()
+        self.setup_data_collection()
+        self.setup_serial()
+        self.main_loop()
+
+    def initialize_arrays(self):
+        self.flowSetPoint_Entry = [""] * COLUMNNUM
+        self.flowSetPoints_Shown = ["  Set Channel"] * COLUMNNUM
+        self.toggleStateStrings = [TOGGLE_STATE_OFF] * COLUMNNUM
+        self.flowSetPoints_Sended = [""] * COLUMNNUM
+        self.channels = [Channel.CH_UNKNOWN] * COLUMNNUM
+        self.channelsEntry = [""] * COLUMNNUM
+        self.flowSetPoints_int = [0] * COLUMNNUM
+        self.flowSetPointBkgColors = [COLOR_BLACK] * COLUMNNUM
+        self.channelBkgColors = [COLOR_BLACK] * COLUMNNUM
+
+    def setup_initial_state(self):
+        self.initialize_arrays()
         self.highlighted_entry = ENTRY_HIGHLIGHTED_NONE
         self.mn = False
-        
         self.lastwidth = 0
         self.lastheight = 0
-        self.width = self.COLUMNNUM * COLUMNWIDTH
+        self.width = COLUMNNUM * COLUMNWIDTH
         self.height = HEIGHT
+
+    def setup_ui(self):
+        self.master.geometry(f"{self.width}x{self.height}")
+        self.master.resizable(True, True)
+        self.master.title("RFMv3")
+        
         self.canvas = tk.Canvas(self.master, width=self.width, height=self.height, bg='black')
         self.canvas.pack()
 
-        self.font = ('Calibri Light', FONT_SIZE)
+        self.font = ('Calibri Light', self.config.FONT_SIZE)
         
-        self.dataqueue_10min = []
-        for _ in range(COLUMNNUM + 1):
-            self.dataqueue_10min.append(deque(maxlen=MAXLEN))
-        self.lasttime = 0
+        self.setup_buttons()
+        self.setup_bindings()
+
+    def setup_buttons(self):
+        self.switchs_toggle = [
+            tk.Button(self.master, text="OFF", command=lambda i=i: self.on_switch_toggle(i))
+            for i in range(COLUMNNUM)
+        ]
+        self.mini_toggle = tk.Button(self.master, text="Mini", command=self.on_mini_toggle)
+        self.reset_button = tk.Button(self.master, text="RESET", command=self.on_reset_click)
+        self.plot_button = tk.Button(self.master, text="PLOT", command=self.on_plot_click)
         
+        self.place_buttons()
+
+    def place_buttons(self):
+        for i, button in enumerate(self.switchs_toggle):
+            button.place(x=SWITCH_XOFFSET + i * COLUMNWIDTH, y=SWITCH_YOFFSET, width=SWITCH_WIDTH, height=SWITCH_HEIGHT)
+        self.mini_toggle.place(x=MINITOGGLE_XOFFSET, y=MINITOGGLE_YOFFSET, width=MINITOGGLE_WIDTH, height=MINITOGGLE_HEIGHT)
+        self.reset_button.place(x=RESET_XOFFSET, y=RESET_YOFFSET, width=RESET_WIDTH, height=RESET_HEIGHT)
+        self.plot_button.place(x=PLOT_XOFFSET, y=PLOT_YOFFSET,width=PLOT_WIDTH,height=PLOT_HEIGHT)
+
+    def setup_bindings(self):
+        self.master.bind("<Key>", self.key_pressed)
+        self.master.bind("<Button-1>", self.mouse_pressed)
+        self.master.bind("<Configure>", self.on_resize)
+
+    def setup_data_collection(self):
+        self.dataqueue_10min = [deque(maxlen=MAXLEN) for _ in range(COLUMNNUM + 1)]
+        self.lasttime = time.time()
         self.plot_window = None
+
+    def setup_serial(self):
+        if SERIAL_ON:
+            self.serial = RFMserial("COM3", 9600)
+
+    def main_loop(self):
+        self.update()
+        self.window.after(100, self.main_loop)  # Schedule next update
+
+    def update(self):
+        self.draw()
+        if not SERIAL_ON:
+            return
         
-        self.setup()
-        self.main_loop()
+        flow_values = self.read_flow_values()
+        self.displayFlowValues([f"{x:1f}" for x in flow_values])
+        
+        self.update_plot_data(flow_values)
+
+        if time.time() - self.lasttime > 36 and PLOT_ON:
+            print("Hello")
+            nowtime = time.time()
+            self.lasttime = nowtime
+            for i in range(COLUMNNUM):
+                self.dataqueue_10min[i].append(flow_values[i])
+            self.dataqueue_10min[-1].append(nowtime)
+            if self.plot_window:
+                self.plot_window.update_plot(self.dataqueue_10min)
+            else:
+                print("plot_window is closed")
+
+    def read_flow_values(self):
+        flow_values = [0] * COLUMNNUM
+        
+        self.serial.setReadingChannel_serial(self.channels)
+
+        serial_buffer = self.serial.readline_serial()
+        if serial_buffer:
+            temp_flow_values = self.parse_flow_serial_buffer(serial_buffer)
+            flow_values[0] = temp_flow_values[0]
+            flow_values[1] = temp_flow_values[1]
+        
+
+        tempChannels = [Channel.CH_UNKNOWN, self.channels[2]]
+        if self.channels[2] != Channel.CH_UNKNOWN:
+            self.serial.setReadingChannel_serial(tempChannels)
+            serial_buffer = self.serial.readline_serial()
+            if serial_buffer:
+                temp_flow_values = self.parse_flow_serial_buffer(serial_buffer)
+                flow_values[2] = temp_flow_values[1]
+
+        return flow_values
+
+    def update_plot_data(self, flow_values):
+        if time.time() - self.lasttime > 36 and PLOT_ON:
+            nowtime = time.time()
+            self.lasttime = nowtime
+            for i in range(COLUMNNUM):
+                self.dataqueue_10min[i].append(flow_values[i])
+            self.dataqueue_10min[-1].append(nowtime)
+            if self.plot_window:
+                self.plot_window.update_plot(self.dataqueue_10min)
+
+    def draw(self):
+        # background as black
+        self.window.configure(bg="black")
+        # update width and height from window size
+        self.width = self.window.winfo_width()
+        self.height = self.window.winfo_height()
+        
+        self.fillEntryBkgColor()
+        self.displayTexts()
+        self.replace_toggles()
+        self.save_entry_as_integer()
+        self.change_highlight_entry_to(self.highlighted_entry)
 
     def on_resize(self, event):
         self.width = event.width
@@ -97,60 +207,66 @@ class RFMApp:
             self.draw()
             self.lastwidth = self.width
             self.lastheight = self.height
-        # sychronize canvas size with window size
         self.canvas.config(width=self.width, height=self.height)
 
-    def setup(self):
-        # Initialize GUI
-        self.window = self.master
-        # set window size as COLUMNNUM * COLUMNWIDTH x HEIGHT
-        self.window.geometry(f"{self.COLUMNNUM * COLUMNWIDTH}x{HEIGHT}")
-        # resizable true
-        self.window.resizable(True, True)
-        self.window.title("RFMv3")
-        
-        # Setup serial communication
-        if SERIAL_ON:
-            self.serial = RFMserial("COM3", 9600)
-        
-        # Add GUI elements (buttons, toggles, text fields)
-        self.switchs_toggle = [None] * self.COLUMNNUM
-        for i in range(self.COLUMNNUM):
-            self.switchs_toggle[i] = tk.Button(self.window, text="OFF", command=lambda index=i: self.on_switch_toggle(index))
-            self.switchs_toggle[i].place(x=SWITCH_XOFFSET + i * COLUMNWIDTH, y=SWITCH_YOFFSET, width=SWITCH_WIDTH, height=SWITCH_HEIGHT)
-        
-        # mini toggle (slide switch)
-        self.mini_toggle = tk.Button(self.window, text="Mini", command=self.on_mini_toggle)
-        self.mini_toggle.place(x=MINITOGGLE_XOFFSET, y=MINITOGGLE_YOFFSET, width=MINITOGGLE_WIDTH, height=MINITOGGLE_HEIGHT)
-        
-        # reset button
-        self.reset_button = tk.Button(self.window, text="RESET", command=self.on_reset_click)
-        self.reset_button.place(x=RESET_XOFFSET, y=RESET_YOFFSET, width=RESET_WIDTH, height=RESET_HEIGHT)
-        
-        # plot button
-        self.plot_button = tk.Button(self.window, text="PLOT", command=self.on_plot_click)
-        self.plot_button.place(x=PLOT_XOFFSET, y=PLOT_YOFFSET, width=PLOT_WIDTH, height=PLOT_HEIGHT)
-        
-        # key bindings
-        self.window.bind("<Key>", self.key_pressed)
-        self.window.bind("<Button-1>", self.mouse_pressed)
-        self.window.bind("<Configure>", self.on_resize)
-        
-        # save time
-        self.lasttime = time.time()
+    def on_switch_toggle(self, index):
+        state = self.switchs_toggle[index].config('relief')[-1] == 'sunken'
+        self.toggle_switch(index, state)
+        if state:
+            self.switchs_toggle[index].config(relief="raised", text="OFF")
+        else:
+            self.switchs_toggle[index].config(relief="sunken", text="ON")
 
-    def main_loop(self):
-        self.update()
-        self.window.after(100, self.main_loop)  # Schedule next update
+    def toggle_switch(self, switch_index, last_switch_state):
+        if last_switch_state:
+            self.toggleStateStrings[switch_index] = TOGGLE_STATE_OFF
+            if self.channels[switch_index] != Channel.CH_UNKNOWN:
+                self.flowSetPoints_Shown[switch_index] = "  paused"
+                self.flowSetPoint_Entry[switch_index] = ""
+
+            self.serial.writeChannelOff_serial(self.channels[switch_index])
+        else:
+            if self.channels[switch_index] == Channel.CH_UNKNOWN:
+                self.toggleStateStrings[switch_index] = TOGGLE_STATE_SELECT_CHANNEL
+            else:
+                self.toggleStateStrings[switch_index] = TOGGLE_STATE_ON
+                self.flowSetPoints_Shown[switch_index] = "  " + self.flowSetPoints_Sended[switch_index]
+
+            self.serial.writeChannelOn_serial(self.channels[switch_index])
+
+    def on_mini_toggle(self):
+        if self.mini_toggle.config('relief')[-1] == 'sunken':
+            self.mini_toggle.config(relief="raised")
+            self.window.geometry(f"{COLUMNNUM * COLUMNWIDTH}x{HEIGHT}")
+            self.mn = False
+        else:
+            self.mini_toggle.config(relief="sunken")
+            self.window.geometry(f"{COLUMNNUM * COLUMNWIDTH}x{MINIHEIGHT}")
+            self.mn = True
+
+    def on_reset_click(self):
+        self.setup_initial_state()
+        if self.config.SERIAL_ON:
+            self.serial.reset_serial()
+
+    def on_plot_click(self):
+        # make another window by clicking plot button
+        if not self.plot_window:
+            self.plot_window = PlotWindow(self.master, COLUMNNUM)
+            if PLOT_ON:
+                self.plot_window.update_plot(self.dataqueue_10min)
+        else:
+            # self.plot_window.root.deiconify()
+            self.plot_window = None
 
     def fillEntryBkgColor(self):
         self.canvas.delete("all")  # 기존 도형 모두 삭제
         if not self.mn:
-            for i in range(self.COLUMNNUM):
+            for i in range(COLUMNNUM):
                 # flowSetPointBkgColors 사각형
-                x1 = (60 + i * COLUMNWIDTH) * self.width / (self.COLUMNNUM * COLUMNWIDTH)
+                x1 = (60 + i * COLUMNWIDTH) * self.width / (COLUMNNUM * COLUMNWIDTH)
                 y1 = 167 * self.height / HEIGHT
-                x2 = x1 + 160 * self.width / (self.COLUMNNUM * COLUMNWIDTH)
+                x2 = x1 + 160 * self.width / (COLUMNNUM * COLUMNWIDTH)
                 y2 = y1 + 18 * self.height / HEIGHT
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=self.flowSetPointBkgColors[i], outline="")
 
@@ -164,9 +280,9 @@ class RFMApp:
         if not self.mn:
             line = '.' * 100
             
-            resize_ratio_x = self.width / (self.COLUMNNUM * COLUMNWIDTH)
+            resize_ratio_x = self.width / (COLUMNNUM * COLUMNWIDTH)
             resize_ratio_y = self.height / HEIGHT
-            resize_ratio_tot = (self.height + self.width) / (self.COLUMNNUM * COLUMNWIDTH + HEIGHT)
+            resize_ratio_tot = (self.height + self.width) / (COLUMNNUM * COLUMNWIDTH + HEIGHT)
             font_size = int(FONT_SIZE * resize_ratio_tot)
             font = ('Calibri Light', font_size)
             
@@ -177,7 +293,7 @@ class RFMApp:
             self.canvas.create_text(0, resize_ratio_y * 305,
                                     text=line, fill='white', font=font, anchor='w')
 
-            for i in range(self.COLUMNNUM):
+            for i in range(COLUMNNUM):
                 self.canvas.create_text(resize_ratio_x * (10 + i * COLUMNWIDTH), resize_ratio_y * 20,
                                         text=f"({COLUMNNAME[i]}) Ch  {self.channels[i].value}", fill='white', font=font, anchor='w')
                 self.canvas.create_text(resize_ratio_x * (10 + i * COLUMNWIDTH), resize_ratio_y * 55,
@@ -193,9 +309,9 @@ class RFMApp:
                 self.canvas.create_text(resize_ratio_x * (10 + i * COLUMNWIDTH), resize_ratio_y * 345,
                                         text=f"Input: {self.channelsEntry[i]}", fill='white', font=font, anchor='w')
         else:
-            self.master.geometry(f"{self.COLUMNNUM * COLUMNWIDTH}x{MINIHEIGHT}")
+            self.master.geometry(f"{COLUMNNUM * COLUMNWIDTH}x{MINIHEIGHT}")
             font = ('Calibri Light', FONT_SIZE)
-            for i in range(self.COLUMNNUM):
+            for i in range(COLUMNNUM):
                 self.canvas.create_text(10 + i * COLUMNWIDTH, 20,
                                         text=f"({COLUMNNAME[i]}) Ch  {self.channels[i].value}", fill='white', font=font, anchor='w')
                 self.canvas.create_text(10 + i * COLUMNWIDTH, 55,
@@ -215,16 +331,16 @@ class RFMApp:
 
     def displayFlowValues(self, flowValues):
         if not self.mn:
-            resize_ratio_x = self.width / (self.COLUMNNUM * COLUMNWIDTH)
+            resize_ratio_x = self.width / (COLUMNNUM * COLUMNWIDTH)
             resize_ratio_y = self.height / HEIGHT
-            resize_ratio_tot = (self.height + self.width) / (self.COLUMNNUM * COLUMNWIDTH + HEIGHT)
-            for i in range(self.COLUMNNUM):
+            resize_ratio_tot = (self.height + self.width) / (COLUMNNUM * COLUMNWIDTH + HEIGHT)
+            for i in range(COLUMNNUM):
                 font_size = int(FONT_SIZE * resize_ratio_tot)
                 font = ('Calibri Light', font_size)
                 self.canvas.create_text(resize_ratio_x * (10 + i * COLUMNWIDTH), resize_ratio_y * 80,
                                         text=flowValues[i], fill='white', font=font, anchor='w')
         else:
-            for i in range(self.COLUMNNUM):
+            for i in range(COLUMNNUM):
                 font = ('Calibri Light', FONT_SIZE)
                 self.canvas.create_text(10 + i * COLUMNWIDTH, 80,
                                         text=flowValues[i], fill='white', font=font, anchor='w')
@@ -244,7 +360,7 @@ class RFMApp:
                 self.flowSetPoints_Shown[index] = "  Input invalid"
 
     def save_entry_as_integer(self):
-        for i in range(self.COLUMNNUM):
+        for i in range(COLUMNNUM):
             try:
                 self.flowSetPoints_int[i] = int(self.flowSetPoint_Entry[i])
             except:
@@ -262,124 +378,6 @@ class RFMApp:
             self.flowSetPoints_Sended[index] = ""
             self.flowSetPoints_Shown[index] = "  paused"
             self.serial.setReadingChannel_serial(self.channels)
-
-    def draw(self):
-        # background as black
-        self.window.configure(bg="black")
-        # update width and height from window size
-        self.width = self.window.winfo_width()
-        self.height = self.window.winfo_height()
-        
-        self.fillEntryBkgColor()
-        self.displayTexts()
-        self.replace_toggles()
-        self.save_entry_as_integer()
-        self.change_highlight_entry_to(self.highlighted_entry)
-
-    def update(self):
-        self.draw()
-
-        if not SERIAL_ON:
-            return
-        
-        flow_values = [0] * self.COLUMNNUM
-        
-        self.serial.setReadingChannel_serial(self.channels)
-
-        serial_buffer = self.serial.readline_serial()
-        if serial_buffer:
-            temp_flow_values = self.parse_flow_serial_buffer(serial_buffer)
-            flow_values[0] = temp_flow_values[0]
-            flow_values[1] = temp_flow_values[1]
-        
-
-        tempChannels = [Channel.CH_UNKNOWN, self.channels[2]]
-        if self.channels[2] == Channel.CH_UNKNOWN:
-            flow_values[2] = 0
-        else:
-            self.serial.setReadingChannel_serial(tempChannels)
-            serial_buffer = self.serial.readline_serial()
-            if serial_buffer:
-                temp_flow_values = self.parse_flow_serial_buffer(serial_buffer)
-                flow_values[2] = temp_flow_values[1]
-        
-        self.displayFlowValues([f"{x:1f}" for x in flow_values])
-        
-        if time.time() - self.lasttime > 36 and PLOT_ON:
-            print("Hello")
-            nowtime = time.time()
-            self.lasttime = nowtime
-            for i in range(self.COLUMNNUM):
-                self.dataqueue_10min[i].append(flow_values[i])
-            self.dataqueue_10min[-1].append(nowtime)
-            if self.plot_window:
-                self.plot_window.update_plot(self.dataqueue_10min)
-            else:
-                print("plot_window is closed")
-
-    def initialize_arrays(self):
-        for i in range(self.COLUMNNUM):
-            self.flowSetPoint_Entry[i] = ""
-            self.flowSetPoints_Shown[i] = "  Set Channel"
-            self.toggleStateStrings[i] = TOGGLE_STATE_OFF
-            self.flowSetPoints_Sended[i] = ""
-            self.channels[i] = Channel.CH_UNKNOWN
-            self.channelsEntry[i] = ""
-            self.flowSetPoints_int[i] = 0
-            self.flowSetPointBkgColors[i] = COLOR_BLACK
-            self.channelBkgColors[i] = COLOR_BLACK
-
-    def toggle_switch(self, switch_index, last_switch_state):
-        if last_switch_state:
-            self.toggleStateStrings[switch_index] = TOGGLE_STATE_OFF
-            if self.channels[switch_index] != Channel.CH_UNKNOWN:
-                self.flowSetPoints_Shown[switch_index] = "  paused"
-                self.flowSetPoint_Entry[switch_index] = ""
-
-            self.serial.writeChannelOff_serial(self.channels[switch_index])
-        else:
-            if self.channels[switch_index] == Channel.CH_UNKNOWN:
-                self.toggleStateStrings[switch_index] = TOGGLE_STATE_SELECT_CHANNEL
-            else:
-                self.toggleStateStrings[switch_index] = TOGGLE_STATE_ON
-                self.flowSetPoints_Shown[switch_index] = "  " + self.flowSetPoints_Sended[switch_index]
-
-            self.serial.writeChannelOn_serial(self.channels[switch_index])
-
-    # Add methods for button clicks, toggles, etc.
-    def on_switch_toggle(self, index):
-        state = self.switchs_toggle[index].config('relief')[-1] == 'sunken'
-        self.toggle_switch(index, state)
-        if state:
-            self.switchs_toggle[index].config(relief="raised")
-            self.switchs_toggle[index].config(text="OFF")
-        else:
-            self.switchs_toggle[index].config(relief="sunken")
-            self.switchs_toggle[index].config(text="ON")
-
-    def on_mini_toggle(self):
-        if self.mini_toggle.config('relief')[-1] == 'sunken':
-            self.mini_toggle.config(relief="raised")
-            self.window.geometry(f"{self.COLUMNNUM * COLUMNWIDTH}x{HEIGHT}")
-            self.mn = False
-        else:
-            self.mini_toggle.config(relief="sunken")
-            self.window.geometry(f"{self.COLUMNNUM * COLUMNWIDTH}x{MINIHEIGHT}")
-            self.mn = True
-
-    def on_reset_click(self):
-        self.initialize_arrays()
-        self.serial.reset_serial()
-
-    def on_plot_click(self):
-        # make another window by clicking plot button
-        if not self.plot_window:
-            self.plot_window = PlotWindow(self.master, self.COLUMNNUM)
-            if PLOT_ON:
-                self.plot_window.update_plot(self.dataqueue_10min)
-        else:
-            # self.plot_window.root.deiconify()
-            self.plot_window = None
 
     def is_key_code_change_highlight_entry(self, key_code):
         return key_code == 'Tab' or key_code == 'Left' or key_code == 'Right' or key_code == 'Up' or key_code == 'Down'
@@ -429,7 +427,7 @@ class RFMApp:
     def get_column_index_from_mouse(self, mouseX):
         columnwidth = COLUMNWIDTH
         if not self.mn:
-            columnwidth = COLUMNWIDTH * self.width / (self.COLUMNNUM * COLUMNWIDTH)
+            columnwidth = COLUMNWIDTH * self.width / (COLUMNNUM * COLUMNWIDTH)
         return np.floor(mouseX / columnwidth)
     
     def get_row_index_from_mouse(self, mouseY):
@@ -452,7 +450,7 @@ class RFMApp:
     def get_highlited_entry_from_mouse(self, mouseX, mouseY):
         if self.get_row_index_from_mouse(mouseY) == -1:
             return ENTRY_HIGHLIGHTED_NONE
-        return 1 + self.get_column_index_from_mouse(mouseX) + self.COLUMNNUM * self.get_row_index_from_mouse(mouseY)
+        return 1 + self.get_column_index_from_mouse(mouseX) + COLUMNNUM * self.get_row_index_from_mouse(mouseY)
         
     def mouse_pressed(self, event):
         self.highlighted_entry = self.get_highlited_entry_from_mouse(event.x, event.y)
@@ -499,9 +497,9 @@ class RFMApp:
 
     def replace_toggles(self):
         if not self.mn:
-            resize_ratio_x = self.width / (self.COLUMNNUM * COLUMNWIDTH)
+            resize_ratio_x = self.width / (COLUMNNUM * COLUMNWIDTH)
             resize_ratio_y = self.height / HEIGHT
-            for i in range(self.COLUMNNUM):
+            for i in range(COLUMNNUM):
                 self.switchs_toggle[i].place(x=(SWITCH_XOFFSET + i * COLUMNWIDTH) * resize_ratio_x, y=SWITCH_YOFFSET * resize_ratio_y,
                                              width=SWITCH_WIDTH * resize_ratio_x, height=SWITCH_HEIGHT * resize_ratio_y)
             self.reset_button.place(x=RESET_XOFFSET * resize_ratio_x, y=RESET_YOFFSET * resize_ratio_y,
