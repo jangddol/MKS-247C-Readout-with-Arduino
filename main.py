@@ -150,18 +150,6 @@ class RFMApp:
         
         self.update_plot_data(flow_values)
 
-        if time.time() - self.lasttime > 36 and PLOT_ON:
-            print("Hello")
-            nowtime = time.time()
-            self.lasttime = nowtime
-            for i in range(COLUMNNUM):
-                self.dataqueue_10min[i].append(flow_values[i])
-            self.dataqueue_10min[-1].append(nowtime)
-            if self.plot_window:
-                self.plot_window.update_plot(self.dataqueue_10min)
-            else:
-                print("plot_window is closed")
-
     def read_flow_values(self):
         flow_values = [0] * COLUMNNUM
         
