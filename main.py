@@ -7,7 +7,7 @@ from RFMserial import RFMserial
 from channel import Channel, convert_int_to_channel
 from plotwindow import PlotWindow
 
-SERIAL_ON = False
+SERIAL_ON = True
 PLOT_ON = True
 
 # graphic constants

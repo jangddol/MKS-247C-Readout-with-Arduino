@@ -1,1 +1,4 @@
 __pycache__/*
+build/*
+dist/*
+MKS_247C_Readout.spec
