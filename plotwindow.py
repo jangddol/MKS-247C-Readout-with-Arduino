@@ -28,7 +28,7 @@ class PlotWindow:
 
         self.root = tk.Toplevel(self.mother)
         self.root.iconbitmap("MFC.ico")
-        self.root.title("Plot Window")
+        self.root.title("Flow Rate Monitor")
         self.root.geometry("800x600")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -48,7 +48,7 @@ class PlotWindow:
             self.lines.append(line)
         
         self.ax.set_xlabel("Time")
-        self.ax.set_ylabel("Flow Rate")
+        self.ax.set_ylabel("Flow Rate (L/min)")
         self.ax.set_title("Flow Rate vs Time")
         self.ax.legend(loc='lower left')
         self.ax.grid(True)

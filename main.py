@@ -86,7 +86,7 @@ class RFMApp:
     def setup_ui(self):
         self.master.geometry(f"{self.width}x{self.height}")
         self.master.resizable(True, True)
-        self.master.title("RFMv3")
+        self.master.title("MFC Readout Reader")
         
         self.canvas = tk.Canvas(self.master, width=self.width, height=self.height, bg='black')
         self.canvas.pack()
