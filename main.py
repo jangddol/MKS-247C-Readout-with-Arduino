@@ -243,14 +243,16 @@ class RFMApp:
         self.serial.reset_serial()
 
     def on_plot_click(self):
-        # make another window by clicking plot button
-        if not self.plot_window:
+        if not hasattr(self, 'plot_window') or self.plot_window is None:
             self.plot_window = PlotWindow(self.master, COLUMNNUM)
-            if PLOT_ON:
-                self.plot_window.update_plot(self.dataqueue_10min)
-        else:
-            # self.plot_window.root.deiconify()
-            self.plot_window = None
+        elif not self.plot_window.root or not self.plot_window.root.winfo_exists():
+            self.plot_window.create_window()  # 새로운 창 생성 메서드
+        
+        if PLOT_ON:
+            self.plot_window.update_plot(self.dataqueue_10min)
+        
+        self.plot_window.root.lift()
+        self.plot_window.root.focus_force()
 
     def fillEntryBkgColor(self):
         self.canvas.delete("all")  # 기존 도형 모두 삭제
