@@ -488,5 +488,6 @@ class RFMApp:
 
 if __name__ == "__main__":
     master = tk.Tk()
+    master.iconbitmap("MFC.ico")
     app = RFMApp(master)
     app.master.mainloop()

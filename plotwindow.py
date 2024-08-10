@@ -27,6 +27,7 @@ class PlotWindow:
             return
 
         self.root = tk.Toplevel(self.mother)
+        self.root.iconbitmap("MFC.ico")
         self.root.title("Plot Window")
         self.root.geometry("800x600")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
