@@ -4,10 +4,11 @@ from collections import deque
 import time
 
 from RFMserial import RFMserial
-from channel import Channel, convert_int_to_channel
+from channel import Channel, ChannelName, convert_int_to_channel
 from plotwindow import PlotWindow
+from schedularwindow import Action, SchedularWindow, ScheduleWidget
 
-SERIAL_ON = True
+SERIAL_ON = False
 PLOT_ON = True
 
 # graphic constants
@@ -27,10 +28,14 @@ PLOT_XOFFSET = RESET_XOFFSET + 60
 PLOT_YOFFSET = RESET_YOFFSET
 PLOT_WIDTH = RESET_WIDTH
 PLOT_HEIGHT = RESET_HEIGHT
-MINITOGGLE_XOFFSET = 175
-MINITOGGLE_YOFFSET = 40
-MINITOGGLE_WIDTH = 50
-MINITOGGLE_HEIGHT = 20
+SCHEDULAR_XOFFSET = RESET_XOFFSET
+SCHEDULAR_YOFFSET = 30
+SCHEDULAR_WIDTH = RESET_WIDTH
+SCHEDULAR_HEIGHT = RESET_HEIGHT
+MINITOGGLE_XOFFSET = RESET_XOFFSET + 60
+MINITOGGLE_YOFFSET = SCHEDULAR_YOFFSET
+MINITOGGLE_WIDTH = RESET_WIDTH
+MINITOGGLE_HEIGHT = RESET_HEIGHT
 MINIHEIGHT = 130
 
 # color constant
@@ -91,8 +96,6 @@ class RFMApp:
         self.canvas = tk.Canvas(self.master, width=self.width, height=self.height, bg='black')
         self.canvas.pack()
 
-        self.font = ('Calibri Light', FONT_SIZE)
-        
         self.setup_buttons()
         self.setup_bindings()
 
@@ -101,9 +104,11 @@ class RFMApp:
             tk.Button(self.master, text="OFF", command=lambda i=i: self.on_switch_toggle(i))
             for i in range(COLUMNNUM)
         ]
-        self.mini_toggle = tk.Button(self.master, text="Mini", command=self.on_mini_toggle)
+        
         self.reset_button = tk.Button(self.master, text="RESET", command=self.on_reset_click)
         self.plot_button = tk.Button(self.master, text="PLOT", command=self.on_plot_click)
+        self.schedular_button = tk.Button(self.master, text="Schedular", command=self.on_schedular_click)
+        self.mini_toggle = tk.Button(self.master, text="Mini", command=self.on_mini_toggle)
         
         self.place_buttons()
 
@@ -118,11 +123,14 @@ class RFMApp:
                                     width=RESET_WIDTH * resize_ratio_x, height=RESET_HEIGHT * resize_ratio_y)
             self.plot_button.place(x=PLOT_XOFFSET * resize_ratio_x, y=PLOT_YOFFSET * resize_ratio_y,
                                     width=PLOT_WIDTH * resize_ratio_x, height=PLOT_HEIGHT * resize_ratio_y)
+            self.schedular_button.place(x=SCHEDULAR_XOFFSET * resize_ratio_x, y=SCHEDULAR_YOFFSET * resize_ratio_y,
+                                   width=SCHEDULAR_WIDTH * resize_ratio_x, height=SCHEDULAR_HEIGHT * resize_ratio_y)
             self.mini_toggle.place(x=MINITOGGLE_XOFFSET * resize_ratio_x, y=MINITOGGLE_YOFFSET * resize_ratio_y,
                                    width=MINITOGGLE_WIDTH * resize_ratio_x, height=MINITOGGLE_HEIGHT * resize_ratio_y)
         else:
             self.reset_button.place(x=RESET_XOFFSET, y=RESET_YOFFSET, width=RESET_WIDTH, height=RESET_HEIGHT)
             self.plot_button.place(x=PLOT_XOFFSET, y=PLOT_YOFFSET, width=PLOT_WIDTH, height=PLOT_HEIGHT)
+            self.schedular_button.place(x=SCHEDULAR_XOFFSET, y=SCHEDULAR_YOFFSET, width=SCHEDULAR_WIDTH, height=SCHEDULAR_HEIGHT)
             self.mini_toggle.place(x=MINITOGGLE_XOFFSET, y=MINITOGGLE_YOFFSET, width=MINITOGGLE_WIDTH, height=MINITOGGLE_HEIGHT)
 
     def setup_bindings(self):
@@ -133,14 +141,16 @@ class RFMApp:
     def setup_data_collection(self):
         self.dataqueue_10min = [deque(maxlen=MAXLEN) for _ in range(COLUMNNUM + 1)]
         self.lasttime = time.time()
+        self.last_schedule_handle_time_in_min = time.localtime().tm_wday * 24 * 60 + time.localtime().tm_hour * 60 + time.localtime().tm_min
         self.plot_window = None
+        self.schedular_window = None
 
     def setup_serial(self, on):
         self.serial = RFMserial(on, "COM3", 9600)
 
     def main_loop(self):
         self.update()
-        self.master.after(100, self.main_loop)  # Schedule next update
+        self.master.after(100, self.main_loop)  # Schedule next update, 0.1 s
 
     def update(self):
         self.draw()
@@ -149,6 +159,8 @@ class RFMApp:
         self.displayFlowValues([f"{x:.2f}" for x in flow_values])
         
         self.update_plot_data(flow_values)
+        
+        self.handle_schedular()
 
     def read_flow_values(self):
         flow_values = [0] * COLUMNNUM
@@ -181,6 +193,46 @@ class RFMApp:
             self.dataqueue_10min[-1].append(nowtime)
             if self.plot_window:
                 self.plot_window.update_plot(self.dataqueue_10min)
+
+    def handle_schedular(self):
+        if not hasattr(self, 'schedular_window') or self.schedular_window is None:
+            return
+
+        # load schedularwidget data
+        schedules = self.schedular_window.schedule_widgets
+        localtime = time.localtime()
+        for schedule in schedules:
+            if self.is_needed_to_do_scheduling(schedule, localtime):
+                self.process_schedule_action(schedule)
+        
+        self.last_schedule_handle_time_in_min = localtime.tm_wday * 24 * 60 + localtime.tm_hour * 60 + localtime.tm_min
+
+    def is_needed_to_do_scheduling(self, schedule: ScheduleWidget, localtime):
+        # 요일이 같고 시간이 같으면서 (최소 1분에 한번은 update가 돌 것이라는 가정하에)
+        # schedule_handle_time이 현재 시간과 다르면 (이는 일주일 중 단 한번만 실행되게끔 보장하기 위함이다.)
+        # schdular에 있는 동작을 수행한다.
+        is_same_day = schedule.day.get_int() == localtime.tm_wday
+        is_same_time: bool = schedule.hour == localtime.tm_hour and schedule.minute == localtime.tm_min
+        is_different_time_with_last_time = self.last_schedule_handle_time_in_min != localtime.tm_wday * 24 * 60 + localtime.tm_hour * 60 + localtime.tm_min
+        return is_same_day and is_same_time and is_different_time_with_last_time
+
+    def process_schedule_action(self, schedule: ScheduleWidget):
+        channel_index = schedule.channelname.get_column()
+        channel = self.channels[channel_index]
+        if channel == Channel.CH_UNKNOWN:
+            return
+        
+        action = schedule.action
+        if action == Action.On:
+            if self.toggleStateStrings[channel_index] == TOGGLE_STATE_OFF:
+                self.on_switch_toggle(channel_index)
+        elif action == Action.Off:
+            if self.toggleStateStrings[channel_index] == TOGGLE_STATE_ON:
+                self.on_switch_toggle(channel_index)
+        elif action == Action.Setpoint:
+            if self.toggleStateStrings[channel_index] == TOGGLE_STATE_ON:
+                self.flowSetPoint_Entry[channel_index] = str(schedule.number)
+                self.update_flow_setpoint(channel_index)
 
     def draw(self):
         # background as black
@@ -254,6 +306,12 @@ class RFMApp:
         self.plot_window.root.lift()
         self.plot_window.root.focus_force()
 
+    def on_schedular_click(self):
+        if not hasattr(self, 'schedular_window') or self.schedular_window is None:
+            self.schedular_window = SchedularWindow(self.master)
+        
+        self.schedular_window.show()
+
     def fillEntryBkgColor(self):
         self.canvas.delete("all")  # 기존 도형 모두 삭제
         if not self.mn:
@@ -271,7 +329,7 @@ class RFMApp:
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=self.channelBkgColors[i], outline="")
 
     def displayTexts(self):
-        COLUMNNAME = ["Tip", "Shield", "Vent"]
+        COLUMNNAME = [ChannelName.Tip.value, ChannelName.Shield.value, ChannelName.Vent.value]
         if not self.mn:
             line = '.' * 100
             
@@ -376,6 +434,8 @@ class RFMApp:
     def change_highlight_entry_using_keycode(self, key_code, highlighted_entry):
         if key_code == 'Tab':
             highlighted_entry = highlighted_entry + 1
+        if highlighted_entry == COLUMNNUM * 2 + 1:
+            highlighted_entry = 1
         return highlighted_entry
 
     def key_pressed(self, event):
