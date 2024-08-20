@@ -130,6 +130,10 @@ class ScheduleWidget:
     def delete_schedule(self):
         self.parent.delete_schedule(self.index)  # 부모에게 삭제 요청
     
+    def recreate_frame(self):
+        self.frame.destroy()
+        self.frame = tk.Frame(self.parent.schedule_frame)
+        self.create_widgets()
 
 class SchedularWindow:
     def __init__(self, mother):
@@ -179,7 +183,9 @@ class SchedularWindow:
     def update_schedule_display(self):
         for widget in self.schedule_frame.winfo_children():
             widget.destroy()
-        for schedule_widget in self.schedule_widgets:
+        for i, schedule_widget in enumerate(self.schedule_widgets):
+            schedule_widget.index = i
+            schedule_widget.recreate_frame()
             schedule_widget.frame.pack(fill=tk.X)
 
     def on_close(self):
