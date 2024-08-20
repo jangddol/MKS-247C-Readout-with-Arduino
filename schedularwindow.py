@@ -171,8 +171,9 @@ class SchedularWindow:
             self.update_schedule_display()  # 스케줄 삭제 후 화면 업데이트
 
     def move_schedule(self, index, direction):
-        if (0 <= index + direction < len(self.schedule_widgets)):
-            self.schedule_widgets[index], self.schedule_widgets[index + direction] = self.schedule_widgets[index + direction], self.schedule_widgets[index]
+        new_index = index + direction
+        if 0 <= new_index < len(self.schedule_widgets):
+            self.schedule_widgets[index], self.schedule_widgets[new_index] = self.schedule_widgets[new_index], self.schedule_widgets[index]
             self.update_schedule_display()
 
     def update_schedule_display(self):
