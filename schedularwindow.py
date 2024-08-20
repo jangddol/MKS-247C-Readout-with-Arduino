@@ -101,6 +101,7 @@ class ScheduleWidget:
 
         tk.Button(self.frame, text="위로", command=self.move_up).grid(row=1, column=12)
         tk.Button(self.frame, text="아래로", command=self.move_down).grid(row=1, column=13)
+        tk.Button(self.frame, text="삭제", command=self.delete_schedule).grid(row=1, column=14)  # 삭제 버튼 추가
 
         self.frame.pack(fill=tk.X)
 
@@ -125,6 +126,10 @@ class ScheduleWidget:
 
     def move_down(self):
         self.parent.move_schedule(self.index, 1)
+    
+    def delete_schedule(self):
+        self.parent.delete_schedule(self.index)  # 부모에게 삭제 요청
+    
 
 class SchedularWindow:
     def __init__(self, mother):
@@ -157,6 +162,13 @@ class SchedularWindow:
         schedule_widget = ScheduleWidget(self, self.schedule_count)
         self.schedule_widgets.append(schedule_widget)
         self.schedule_count += 1
+        # self.update_schedule_display()  # 스케줄 추가 후 화면 업데이트
+    
+    def delete_schedule(self, index):
+        if 0 <= index < len(self.schedule_widgets):
+            del self.schedule_widgets[index]
+            self.schedule_count -= 1
+            self.update_schedule_display()  # 스케줄 삭제 후 화면 업데이트
 
     def move_schedule(self, index, direction):
         if (0 <= index + direction < len(self.schedule_widgets)):
