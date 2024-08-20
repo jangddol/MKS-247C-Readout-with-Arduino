@@ -17,3 +17,17 @@ def convert_int_to_channel(ch):
     if ch == 4:
         return Channel.CH4
     return Channel.CH_UNKNOWN
+
+class ChannelName(enum.Enum):
+    Tip = "Tip"
+    Shield = "Shield"
+    Vent = "Vent"
+    
+    def get_column(self):
+        if self == ChannelName.Tip:
+            return 0
+        if self == ChannelName.Shield:
+            return 1
+        if self == ChannelName.Vent:
+            return 2
+        return -1
