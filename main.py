@@ -141,12 +141,16 @@ class RFMApp:
     def setup_data_collection(self):
         self.dataqueue_10min = [deque(maxlen=MAXLEN) for _ in range(COLUMNNUM + 1)]
         self.lasttime = time.time()
-        self.last_schedule_handle_time_in_min = time.localtime().tm_wday * 24 * 60 + time.localtime().tm_hour * 60 + time.localtime().tm_min
+        self.last_schedule_handle_time_in_min = self.get_time_in_min()
         self.plot_window = None
         self.schedular_window = None
 
     def setup_serial(self, on):
         self.serial = RFMserial(on, "COM3", 9600)
+
+    def get_time_in_min(self):
+        localtime = time.localtime()
+        return localtime.tm_wday * 24 * 60 + localtime.tm_hour * 60 + localtime.tm_min
 
     def main_loop(self):
         self.update()
@@ -205,7 +209,7 @@ class RFMApp:
             if self.is_needed_to_do_scheduling(schedule, localtime):
                 self.process_schedule_action(schedule)
         
-        self.last_schedule_handle_time_in_min = localtime.tm_wday * 24 * 60 + localtime.tm_hour * 60 + localtime.tm_min
+        self.last_schedule_handle_time_in_min = self.get_time_in_min()
 
     def is_needed_to_do_scheduling(self, schedule: ScheduleWidget, localtime):
         # 요일이 같고 시간이 같으면서 (최소 1분에 한번은 update가 돌 것이라는 가정하에)
@@ -213,7 +217,7 @@ class RFMApp:
         # schdular에 있는 동작을 수행한다.
         is_same_day = schedule.day.get_int() == localtime.tm_wday
         is_same_time: bool = schedule.hour == localtime.tm_hour and schedule.minute == localtime.tm_min
-        is_different_time_with_last_time = self.last_schedule_handle_time_in_min != localtime.tm_wday * 24 * 60 + localtime.tm_hour * 60 + localtime.tm_min
+        is_different_time_with_last_time = self.last_schedule_handle_time_in_min != self.get_time_in_min()
         return is_same_day and is_same_time and is_different_time_with_last_time
 
     def process_schedule_action(self, schedule: ScheduleWidget):
